@@ -20,10 +20,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install yt-dlp
-        run: |
-          pip install yt-dlp
-          node --version || echo "node not found"
-          which node || echo "node not in PATH"
+        run: pip install yt-dlp
 
       - name: Restore VTT cache
         uses: actions/cache@v4
@@ -37,13 +34,16 @@ jobs:
         env:
           COOKIES_CONTENT: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
+          echo "=== COOKIES DEBUG ==="
+          echo "Secret length: ${#COOKIES_CONTENT}"
           if [ -z "$COOKIES_CONTENT" ]; then
-            echo "[WARN] Secret YOUTUBE_COOKIES está vacío o no existe"
+            echo "ERROR: YOUTUBE_COOKIES secret está vacío o no existe"
+            echo "Comprueba: Settings > Secrets > Actions > YOUTUBE_COOKIES"
           else
             printf '%s\n' "$COOKIES_CONTENT" > /tmp/cookies.txt
             sed -i 's/\r//' /tmp/cookies.txt
-            echo "[INFO] Cookies escritas: $(wc -c < /tmp/cookies.txt) bytes, $(wc -l < /tmp/cookies.txt) líneas"
-            head -2 /tmp/cookies.txt
+            echo "OK: $(wc -l < /tmp/cookies.txt) líneas, $(wc -c < /tmp/cookies.txt) bytes"
+            echo "Primera línea: $(head -1 /tmp/cookies.txt)"
           fi
 
       - name: Download subtitles
@@ -53,21 +53,12 @@ jobs:
         run: |
           mkdir -p vtts
 
-          # Cookies
           COOKIES_ARG=""
           if [ -f /tmp/cookies.txt ] && [ -s /tmp/cookies.txt ]; then
             COOKIES_ARG="--cookies /tmp/cookies.txt"
-            echo "[INFO] Usando cookies"
+            echo "[INFO] Usando cookies ($(wc -l < /tmp/cookies.txt) líneas)"
           else
-            echo "[WARN] Sin cookies — puede fallar bot detection"
-          fi
-
-          # JS runtime explícito para yt-dlp
-          NODE_PATH=$(which node 2>/dev/null || echo "")
-          JS_ARG=""
-          if [ -n "$NODE_PATH" ]; then
-            JS_ARG="--js-runtimes node:$NODE_PATH"
-            echo "[INFO] JS runtime: $NODE_PATH"
+            echo "[WARN] Sin cookies"
           fi
 
           python -m yt_dlp \
@@ -80,11 +71,10 @@ jobs:
             --no-overwrites \
             --ignore-errors \
             --sleep-requests 2 \
-            --extractor-args "youtube:player_client=web" \
+            --extractor-args "youtube:player_client=android" \
             --download-archive vtts/archive.txt \
             --output "vtts/%(channel)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
             $COOKIES_ARG \
-            $JS_ARG \
             "${YT_URL}"
 
       - name: Build verbatube.json
