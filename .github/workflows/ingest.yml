@@ -19,8 +19,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install yt-dlp
-        run: pip install yt-dlp
+      - name: Install yt-dlp and JS runtime
+        run: |
+          pip install yt-dlp
+          # Node.js ya está instalado en ubuntu-latest, verificar versión
+          node --version
+          npm --version
+          # yt-dlp necesita node en PATH para evadir bot detection de YouTube
+          echo "Node.js disponible para yt-dlp JS runtime"
 
       - name: Restore VTT cache
         uses: actions/cache@v4
@@ -61,6 +67,7 @@ jobs:
             --no-overwrites \
             --ignore-errors \
             --sleep-requests 2 \
+            --extractor-args "youtube:player_client=web" \
             --download-archive vtts/archive.txt \
             --output "vtts/%(channel)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
             $COOKIES_ARG \
