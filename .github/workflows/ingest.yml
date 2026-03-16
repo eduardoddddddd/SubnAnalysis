@@ -30,12 +30,20 @@ jobs:
           restore-keys: |
             vtts-
 
+      - name: Write cookies file
+        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
+        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+
       - name: Download subtitles
         env:
           YT_URL: ${{ github.event.client_payload.url }}
           YT_LANG: ${{ github.event.client_payload.lang }}
         run: |
           mkdir -p vtts
+          COOKIES_ARG=""
+          if [ -f /tmp/cookies.txt ]; then
+            COOKIES_ARG="--cookies /tmp/cookies.txt"
+          fi
           python -m yt_dlp \
             --skip-download \
             --write-auto-subs \
@@ -45,9 +53,10 @@ jobs:
             --write-info-json \
             --no-overwrites \
             --ignore-errors \
-            --sleep-requests 1 \
+            --sleep-requests 2 \
             --download-archive vtts/archive.txt \
             --output "vtts/%(channel)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
+            $COOKIES_ARG \
             "${YT_URL}"
 
       - name: Build verbatube.json
