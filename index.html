@@ -263,11 +263,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Outfit
         <input id="dl-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
       </div>
       <div class="dl-field">
-        <label>PIN de autorización</label>
-        <input id="dl-pin" type="password" placeholder="PIN secreto (configurado en GitHub Secrets como INGEST_PIN)">
-        <div class="dl-hint">Verifica que eres tú quien dispara el workflow. Sin PIN correcto, Actions aborta sin ejecutar nada.</div>
-      </div>
-      <div class="dl-field">
         <label>URL de YouTube</label>
         <input id="dl-url" type="url" placeholder="https://www.youtube.com/@canal  ó  /playlist?list=...  ó  /watch?v=...">
       </div>
@@ -703,11 +698,9 @@ let _pollTimer=null;
 
 async function startDownload(){
   const token=$('dl-token').value.trim();
-  const pin=$('dl-pin').value.trim();
   const url=$('dl-url').value.trim();
   const lang=$('dl-lang').value;
   if(!token){ alert('Introduce tu GitHub Token (scope: workflow)'); return; }
-  if(!pin){ alert('Introduce el PIN de autorización'); return; }
   if(!url){ alert('Introduce una URL de YouTube'); return; }
 
   $('dl-start-btn').disabled=true;
@@ -730,7 +723,7 @@ async function startDownload(){
       },
       body: JSON.stringify({
         event_type:'ingest',
-        client_payload:{ url, lang, pin }
+        client_payload:{ url, lang }
       })
     });
 
