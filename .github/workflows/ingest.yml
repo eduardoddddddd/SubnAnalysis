@@ -41,10 +41,11 @@ jobs:
         env:
           COOKIES_CONTENT: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
-          printf '%s' "$COOKIES_CONTENT" > /tmp/cookies.txt
-          echo "" >> /tmp/cookies.txt
-          echo "[INFO] Cookies file size: $(wc -c < /tmp/cookies.txt) bytes, lines: $(wc -l < /tmp/cookies.txt)"
-          head -3 /tmp/cookies.txt
+          printf '%s\n' "$COOKIES_CONTENT" > /tmp/cookies.txt
+          # Convertir CRLF → LF (Windows → Linux)
+          sed -i 's/\r//' /tmp/cookies.txt
+          echo "[INFO] Cookies: $(wc -c < /tmp/cookies.txt) bytes, $(wc -l < /tmp/cookies.txt) líneas"
+          head -2 /tmp/cookies.txt
 
       - name: Download subtitles
         env:
