@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SubnAnalysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root {
+    --bg:        #f5f5f0;
+    --surface:   #ffffff;
+    --surface2:  #eeede8;
+    --border:    #d4d0c8;
+    --border2:   #bbb8ae;
+    --gold:      #7a5c1e;
+    --gold-dim:  #9a7432;
+    --gold-glow: rgba(122, 92, 30, 0.10);
+    --text:      #1a1a16;
+    --text-muted:#3a3a30;
+    --text-dim:  #7a7a6a;
+    --red:       #b83232;
+    --green:     #2a7a4a;
+    --sidebar-w: 420px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; font-size: 16px; overflow: hidden; }
+
+  /* ── WELCOME SCREEN ── */
+  #welcome-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 28px; z-index: 200;
+  }
+  .logo-big { font-size: 32px; font-weight: 700; letter-spacing: 0.12em; color: var(--gold); text-transform: uppercase; }
+  .logo-big span { color: var(--text-muted); font-weight: 300; }
+  .welcome-sub { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-dim); text-align: center; line-height: 1.8; max-width: 480px; }
+  .welcome-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .btn-open {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500;
+    padding: 12px 32px; border-radius: 4px;
+    border: 1px solid var(--gold-dim); background: var(--gold-glow); color: var(--gold);
+    cursor: pointer; transition: all 0.15s; letter-spacing: 0.05em;
+  }
+  .btn-open:hover { background: rgba(200,164,74,0.2); border-color: var(--gold); }
+  .drop-zone {
+    width: 320px; height: 80px; border: 2px dashed var(--border2); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim);
+    transition: all 0.2s; cursor: pointer; text-align: center;
+  }
+  .drop-zone.drag-over { border-color: var(--gold); color: var(--gold); background: var(--gold-glow); }
+  .welcome-hint { font-size: 11px; color: var(--text-dim); font-style: italic; }
+  .welcome-err { font-size: 12px; color: var(--red); font-family: 'JetBrains Mono', monospace; display: none; }
+
+  /* ── LAYOUT ── */
+  #app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: 52px 1fr; height: 100vh; }
+
+  /* ── TOPBAR ── */
+  #topbar {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 16px;
+    padding: 0 32px; border-bottom: 2px solid var(--border); background: var(--surface);
+    position: relative; z-index: 10;
+  }
+  #logo { font-size: 18px; font-weight: 700; letter-spacing: 0.12em; color: var(--gold); text-transform: uppercase; white-space: nowrap; cursor: pointer; }
+  #logo span { color: var(--text-muted); font-weight: 300; }
+  .nav-tabs { display: flex; gap: 2px; margin-left: 8px; }
+  .nav-tab {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace; padding: 4px 14px;
+    border-radius: 3px 3px 0 0; border: 1px solid transparent; border-bottom: none;
+    cursor: pointer; color: var(--text-dim); background: none; transition: all 0.15s; letter-spacing: 0.04em;
+  }
+  .nav-tab:hover { color: var(--text-muted); }
+  .nav-tab.active { color: var(--gold); border-color: var(--border2); background: var(--surface); }
+  .top-divider { width: 1px; height: 20px; background: var(--border2); }
+  #stats-bar { font-size: 13px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em; }
+  #stats-bar b { color: var(--text-muted); font-weight: 600; }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  #lang-filter {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--surface2);
+    border: 1px solid var(--border2); color: var(--text-muted); padding: 4px 10px;
+    border-radius: 3px; cursor: pointer; outline: none; transition: border-color 0.2s;
+  }
+  .btn-change-file {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 4px 10px;
+    border-radius: 3px; border: 1px solid var(--border2); background: none;
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+  }
+  .btn-change-file:hover { border-color: var(--gold-dim); color: var(--text-muted); }
+
+  /* ── SIDEBAR ── */
+  #sidebar { border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow: hidden; }
+  #search-wrap { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+  #search-box {
+    width: 100%; background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 14px; padding: 9px 14px 9px 36px;
+    border-radius: 4px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  #search-box:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 2px var(--gold-glow); }
+  #search-box::placeholder { color: var(--text-dim); }
+  .search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none; }
+  .search-wrap-inner { position: relative; }
+  #search-count { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; padding: 6px 2px 0; min-height: 18px; }
+  #search-count.has-results { color: var(--gold-dim); }
+  #channel-filter-wrap { padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; }
+  .ch-tag {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace; padding: 3px 9px;
+    border-radius: 2px; background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+  }
+  .ch-tag:hover { border-color: var(--gold-dim); color: var(--text); }
+  .ch-tag.active { background: var(--gold-glow); border-color: var(--gold); color: var(--gold); }
+  #video-list { flex: 1; overflow-y: auto; overflow-x: hidden; }
+  #video-list::-webkit-scrollbar { width: 4px; }
+  #video-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── VIDEO CARD ── */
+  .video-card { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
+  .video-card:hover { background: var(--surface2); }
+  .video-card.active { background: var(--gold-glow); border-left: 2px solid var(--gold); padding-left: 14px; }
+  .thumb-wrap { flex-shrink: 0; width: 90px; height: 51px; border-radius: 3px; overflow: hidden; background: var(--surface2); position: relative; }
+  .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 20px; }
+  .thumb-duration { position: absolute; bottom: 2px; right: 3px; background: rgba(0,0,0,0.75); color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 1px 4px; border-radius: 2px; }
+  .card-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-channel { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-date { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+  .card-snippet { font-size: 12px; color: var(--text-muted); line-height: 1.45; font-style: italic; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-snippet mark { background: rgba(200,164,74,0.25); color: var(--gold); font-style: normal; border-radius: 1px; padding: 0 1px; }
+  .lang-badge { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; background: var(--surface2); border: 1px solid var(--border2); color: var(--text-dim); padding: 1px 5px; border-radius: 2px; text-transform: uppercase; }
+
+  /* ── MAIN ── */
+  #main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+  #empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--text-dim); }
+  .empty-icon { font-size: 48px; opacity: 0.3; }
+  .empty-title { font-size: 16px; font-weight: 500; color: var(--text-muted); }
+  .empty-sub { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 340px; line-height: 1.6; }
+
+  /* ── VIEWER ── */
+  #viewer { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+  #viewer.visible { display: flex; }
+  #viewer-header { padding: 18px 32px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #viewer-title { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.3; margin-bottom: 10px; }
+  #viewer-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .vm-item { display: flex; align-items: center; gap: 5px; font-size: 13px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); }
+  .vm-item .icon { color: var(--text-dim); }
+  .yt-link { margin-left: auto; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--gold); text-decoration: none; border: 1px solid var(--gold-dim); padding: 4px 12px; border-radius: 3px; transition: all 0.15s; white-space: nowrap; }
+  .yt-link:hover { background: var(--gold-glow); border-color: var(--gold); }
+  #viewer-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 32px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .tb-btn { font-size: 11px; font-family: 'JetBrains Mono', monospace; background: none; border: 1px solid var(--border2); color: var(--text-muted); padding: 4px 12px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
+  .tb-btn:hover { border-color: var(--gold-dim); color: var(--text); }
+  .tb-btn.active { background: var(--gold-glow); border-color: var(--gold-dim); color: var(--gold); }
+  #inline-search { font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); padding: 4px 12px; border-radius: 3px; outline: none; width: 200px; }
+  #inline-search:focus { border-color: var(--gold-dim); }
+  #inline-search::placeholder { color: var(--text-dim); }
+  #match-nav { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); }
+  #subtitle-scroll { flex: 1; overflow-y: auto; padding: 48px 120px 80px 120px; }
+  #subtitle-scroll::-webkit-scrollbar { width: 5px; }
+  #subtitle-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .clean-paragraph { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 500; line-height: 2.2; color: #111; margin-bottom: 2.8em; max-width: 860px; padding-bottom: 0.8em; border-bottom: 1px solid var(--border); }
+  .clean-paragraph mark { background: rgba(122,92,30,0.15); color: var(--gold); border-radius: 2px; padding: 0 2px; }
+  .clean-paragraph mark.current { background: rgba(122,92,30,0.30); outline: 1px solid var(--gold); }
+  .no-results { padding: 60px 32px; text-align: center; color: var(--text-dim); }
+
+  /* ── LLM PANEL ── */
+  #llm-panel { display: none; flex-direction: column; gap: 20px; padding: 40px 64px; max-width: 900px; overflow-y: auto; height: 100%; }
+  #llm-panel.visible { display: flex; }
+  .llm-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .llm-subtitle { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .llm-field label { display: block; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .llm-field textarea { width: 100%; font-family: 'Outfit', sans-serif; font-size: 14px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); padding: 12px 14px; border-radius: 4px; outline: none; resize: vertical; min-height: 100px; }
+  .llm-field textarea:focus { border-color: var(--gold-dim); }
+  .llm-field textarea::placeholder { color: var(--text-dim); }
+  .llm-field select, .llm-field input { width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 13px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); padding: 10px 14px; border-radius: 4px; outline: none; transition: border-color 0.2s; }
+  .llm-field select:focus, .llm-field input:focus { border-color: var(--gold-dim); }
+  .llm-hint { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 4px; }
+  .llm-btn { font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 9px 22px; border-radius: 4px; border: 1px solid var(--gold-dim); background: var(--gold-glow); color: var(--gold); cursor: pointer; transition: all 0.15s; letter-spacing: 0.04em; align-self: flex-start; }
+  .llm-btn:hover { background: rgba(200,164,74,0.2); border-color: var(--gold); }
+  .llm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #llm-response { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 20px; min-height: 150px; max-height: 500px; overflow-y: auto; font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--text); line-height: 1.7; display: none; white-space: pre-wrap; word-wrap: break-word; }
+  #llm-response.visible { display: block; }
+  #llm-response.error { border-color: var(--red); background: rgba(184,50,50,0.05); color: var(--red); }
+  .llm-loading { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .context-info { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); padding: 6px 10px; background: var(--surface2); border-radius: 3px; border: 1px solid var(--border); }
+  .context-info b { color: var(--gold-dim); }
+
+  /* ── EXPORT ── */
+  .export-actions { display: flex; gap: 6px; align-items: center; }
+  .exp-btn { font-size: 10px; font-family: 'JetBrains Mono', monospace; background: var(--surface2); border: 1px solid var(--border2); color: var(--text-muted); padding: 3px 8px; border-radius: 3px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 4px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .exp-btn:hover { border-color: var(--gold-dim); color: var(--gold); background: var(--surface); }
+  .exp-btn svg { width: 12px; height: 12px; opacity: 0.7; }
+
+  /* ── PDF TEMPLATE ── */
+  #pdf-template-container { position: absolute; left: -9999px; top: 0; }
+  #pdf-template { display: none; padding: 40px 60px; background: white; color: #1a1a1a; }
+  .pdf-header { border-bottom: 2px solid #7a5c1e; margin-bottom: 30px; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .pdf-logo { font-size: 24px; font-weight: 700; color: #7a5c1e; font-family: 'Outfit', sans-serif; }
+  .pdf-logo span { color: #3a3a30; font-weight: 300; }
+  .pdf-meta-box { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #7a7a6a; text-align: right; }
+  .pdf-title { font-size: 28px; font-weight: 700; line-height: 1.2; margin-bottom: 20px; font-family: 'Outfit', sans-serif; }
+  .pdf-info-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 20px; margin-bottom: 40px; font-size: 13px; padding: 15px; background: #f9f9f7; border-radius: 4px; }
+  .pdf-info-label { font-weight: 600; color: #7a5c1e; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+  .pdf-content { font-family: 'Lora', serif; font-size: 13pt; line-height: 2; color: #111; text-align: justify; }
+  .pdf-content p { margin-bottom: 2.2em; }
+  .pdf-footer { margin-top: 50px; border-top: 1px solid #d4d0c8; padding-top: 15px; font-size: 10px; color: #7a7a6a; text-align: center; font-style: italic; }
+
+  /* ── MISC ── */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+</style>
+</head>
+<body>
+
+<!-- ── WELCOME SCREEN ── -->
+<div id="welcome-screen">
+  <div class="logo-big">Subn<span>Analysis</span></div>
+  <div class="welcome-sub">
+    Biblioteca local de subtítulos de YouTube · 100% offline · Sin servidor<br>
+    Carga tu <code>verbatube.json</code> para empezar
+  </div>
+  <div class="welcome-actions">
+    <button class="btn-open" id="btn-open-file">📂 Abrir verbatube.json</button>
+    <div class="drop-zone" id="drop-zone">
+      ↓ Arrastra aquí tu verbatube.json
+    </div>
+    <div class="welcome-hint">Chrome/Edge: usa el botón · Firefox: arrastra también funciona</div>
+    <div class="welcome-err" id="welcome-err"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app" style="display:none">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div id="logo" onclick="setAppTab('library')">Subn<span>Analysis</span></div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="tab-library" onclick="setAppTab('library')">Biblioteca</button>
+      <button class="nav-tab" id="tab-llm" onclick="setAppTab('llm')">🤖 Preguntas IA</button>
+    </div>
+    <div class="top-divider"></div>
+    <div id="stats-bar">—</div>
+    <div class="top-right">
+      <select id="lang-filter">
+        <option value="">Todos los idiomas</option>
+        <option value="es">Español</option>
+        <option value="en">English</option>
+      </select>
+      <button class="btn-change-file" onclick="resetToWelcome()">↺ Cambiar JSON</button>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="search-wrap">
+      <div class="search-wrap-inner">
+        <span class="search-icon">⌕</span>
+        <input id="search-box" type="search" placeholder="Buscar en todos los subtítulos…" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="search-count"></div>
+    </div>
+    <div id="channel-filter-wrap"></div>
+    <div id="video-list"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- LLM Panel -->
+    <div id="llm-panel">
+      <div>
+        <div class="llm-title">Consultar con IA 🤖</div>
+        <div class="llm-subtitle">
+          Haz preguntas sobre el contenido de tus vídeos. La IA analiza los subtítulos indexados.<br>
+          Las llamadas van directamente a la API — tu clave no se almacena.
+        </div>
+      </div>
+      <div class="llm-field">
+        <label>Proveedor LLM</label>
+        <select id="llm-provider"></select>
+      </div>
+      <div class="llm-field">
+        <label>Modelo</label>
+        <select id="llm-model"></select>
+      </div>
+      <div class="llm-field">
+        <label>Clave API</label>
+        <input id="llm-api-key" type="password" autocomplete="new-password" placeholder="sk-ant-… / sk-… / AIza…">
+        <div class="llm-hint">Usada solo en esta sesión en memoria, no se guarda en disco.</div>
+      </div>
+      <div class="llm-field">
+        <label>Contexto</label>
+        <div class="context-info" id="context-info">
+          Sin vídeo seleccionado — se buscará por relevancia en todos los vídeos
+        </div>
+      </div>
+      <div class="llm-field">
+        <label>Pregunta</label>
+        <textarea id="llm-query" placeholder="¿Cuáles son los temas principales? ¿Hay conexiones entre los vídeos de diferentes canales?"></textarea>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="llm-btn" id="llm-send-btn" onclick="sendLLMQuery()">▶ Enviar pregunta</button>
+        <div class="export-actions" id="llm-export-actions" style="display:none">
+          <button class="exp-btn" onclick="ExportManager.aiResponseToMD()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>MD
+          </button>
+          <button class="exp-btn" onclick="ExportManager.aiResponseToPDF()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF
+          </button>
+        </div>
+      </div>
+      <div class="llm-loading" id="llm-loading" style="display:none">
+        <span class="spinner"></span><span id="llm-loading-msg">Procesando consulta…</span>
+      </div>
+      <div id="llm-response"></div>
+    </div>
+
+    <!-- Library View -->
+    <div id="library-view" style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+      <div id="empty-state">
+        <div class="empty-icon">◈</div>
+        <div class="empty-title">Selecciona un vídeo</div>
+        <div class="empty-sub">Elige un vídeo de la lista o usa el buscador para encontrar contenido en todos los subtítulos.</div>
+      </div>
+      <div id="viewer">
+        <div id="viewer-header">
+          <div id="viewer-title"></div>
+          <div id="viewer-meta"></div>
+        </div>
+        <div id="viewer-toolbar">
+          <button class="tb-btn active" id="btn-clean">Sin timestamps</button>
+          <button class="tb-btn" id="btn-ts">Con timestamps</button>
+          <div class="top-divider" style="height:14px;margin:0 4px"></div>
+          <div class="export-actions">
+            <button class="exp-btn" onclick="ExportManager.activeVideoToMD()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>MD
+            </button>
+            <button class="exp-btn" onclick="ExportManager.activeVideoToPDF()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF
+            </button>
+          </div>
+          <div style="flex:1"></div>
+          <input id="inline-search" type="search" placeholder="Buscar en este vídeo…" autocomplete="off">
+          <div id="match-nav"></div>
+        </div>
+        <div id="subtitle-scroll"></div>
+      </div>
+    </div><!-- /library-view -->
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- PDF Template (hidden) -->
+<div id="pdf-template-container">
+  <div id="pdf-template">
+    <div class="pdf-header">
+      <div class="pdf-logo">Subn<span>Analysis</span></div>
+      <div class="pdf-meta-box" id="pdf-date-meta"></div>
+    </div>
+    <div class="pdf-title" id="pdf-main-title"></div>
+    <div class="pdf-info-grid">
+      <div class="pdf-info-label">Canal</div><div id="pdf-info-channel"></div>
+      <div class="pdf-info-label">Publicado</div><div id="pdf-info-date"></div>
+      <div class="pdf-info-label">Fuente</div><div id="pdf-info-url" style="color:#7a5c1e;word-break:break-all"></div>
+    </div>
+    <div class="pdf-content" id="pdf-main-content"></div>
+    <div class="pdf-footer">Generado por SubnAnalysis · Biblioteca local de subtítulos de YouTube</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// SUBNANALYSIS — Standalone HTML · No server required
+// ═══════════════════════════════════════════════════════════════════
+
+// ── STATE ──
+let index = null;
+let filteredVideos = [];
+let activeVideoId = null;
+let activeChannel = null;
+let activeLang = "";
+let searchQuery = "";
+let viewMode = "clean";
+let inlineQuery = "";
+let inlineMatches = [];
+let inlineCurrent = 0;
+let loadedCues = [];
+let searchTimer = null;
+
+const LLM_PROVIDER_MAP = {
+  anthropic: {
+    label: "Anthropic Claude",
+    models: [
+      { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
+      { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+      { value: "claude-3-opus-20240229", label: "Claude 3 Opus" }
+    ]
+  },
+  openai: {
+    label: "OpenAI",
+    models: [
+      { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+      { value: "gpt-4o", label: "GPT-4o" }
+    ]
+  },
+  gemini: {
+    label: "Google Gemini",
+    models: [
+      { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { value: "gemini-2.5-flash-preview-04-17", label: "Gemini 2.5 Flash (preview)" }
+    ]
+  }
+};
+
+// ── UTILS ──
+function formatDate(d) {
+  if (!d || d.length < 8) return "";
+  return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+}
+function escapeRx(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function secondsToTs(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+function highlight(text, query) {
+  if (!query) return text;
+  return text.replace(new RegExp(`(${escapeRx(query)})`, 'gi'), '<mark>$1</mark>');
+}
+function getSnippet(fullText, query, len = 180) {
+  if (!query) return fullText.slice(0, len) + (fullText.length > len ? '…' : '');
+  const idx = fullText.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return fullText.slice(0, len) + '…';
+  const start = Math.max(0, idx - 60), end = Math.min(fullText.length, idx + len - 60);
+  return (start > 0 ? '…' : '') + highlight(fullText.slice(start, end), query) + (end < fullText.length ? '…' : '');
+}
+
+// ── CONTEXT BUILDER (para LLM) ──
+function buildContextText(query = "") {
+  if (!index) return "No hay índice cargado.";
+  const parts = [];
+  // Si hay vídeo activo seleccionado, usarlo como contexto primario
+  if (activeVideoId) {
+    const v = index.videos.find(x => x.video_id === activeVideoId);
+    if (v) {
+      parts.push(`Vídeo activo: [${v.title}] · Canal: ${v.channel}`);
+      parts.push(`Transcripción completa:\n${v.full_text}`);
+      return parts.join('\n');
+    }
+  }
+  // Sin vídeo activo: buscar por relevancia
+  if (query) {
+    const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const scored = index.videos.map(v => ({
+      score: keywords.reduce((acc, kw) => acc + (v.full_text.toLowerCase().split(kw).length - 1), 0),
+      v
+    })).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 5);
+    if (scored.length) {
+      parts.push(`Top ${scored.length} vídeos más relevantes para: "${query}"\n`);
+      for (const { score, v } of scored) {
+        parts.push(`--- [${v.title}] | Canal: ${v.channel} | ${score} menciones ---`);
+        parts.push(v.full_text);
+      }
+      return parts.join('\n');
+    }
+  }
+  // Fallback: resumen general
+  return `Corpus con ${index.total_videos} vídeos de ${index.channels.length} canales. Canales: ${index.channels.map(c => c.name).join(', ')}.`;
+}
+
+// ── FILE LOADING (File System Access API + drag & drop) ──
+async function openFileDialog() {
+  if (window.showOpenFilePicker) {
+    try {
+      const [fh] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
+      const file = await fh.getFile();
+      await loadFromFile(file);
+    } catch (e) {
+      if (e.name !== 'AbortError') showWelcomeErr("Error: " + e.message);
+    }
+  } else {
+    // Fallback: input file
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.json';
+    inp.onchange = async () => { if (inp.files[0]) await loadFromFile(inp.files[0]); };
+    inp.click();
+  }
+}
+
+async function loadFromFile(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.videos || !Array.isArray(data.videos)) throw new Error("El JSON no tiene el formato esperado (falta campo 'videos')");
+    index = data;
+    document.getElementById('welcome-screen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    init();
+  } catch(e) {
+    showWelcomeErr("Error leyendo JSON: " + e.message);
+  }
+}
+
+function showWelcomeErr(msg) {
+  const el = document.getElementById('welcome-err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function resetToWelcome() {
+  index = null; filteredVideos = []; activeVideoId = null; activeChannel = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('welcome-screen').style.display = 'flex';
+  document.getElementById('welcome-err').style.display = 'none';
+}
+
+// Drag & drop
+function setupDropZone() {
+  const zone = document.getElementById('drop-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', async e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) await loadFromFile(file);
+  });
+  zone.addEventListener('click', openFileDialog);
+  document.getElementById('btn-open-file').addEventListener('click', openFileDialog);
+}
+
+// ── INIT ──
+function init() {
+  updateStats();
+  buildChannelFilter();
+  applyFilters();
+  setupLLMSelectors();
+  document.getElementById("search-box").addEventListener("input", e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { searchQuery = e.target.value.trim(); applyFilters(); }, 280);
+  });
+  document.getElementById("lang-filter").addEventListener("change", e => { activeLang = e.target.value; applyFilters(); });
+  document.getElementById("btn-clean").addEventListener("click", () => setViewMode("clean"));
+  document.getElementById("btn-ts").addEventListener("click", () => setViewMode("ts"));
+  const inSrch = document.getElementById("inline-search");
+  let inlineTimer;
+  inSrch.addEventListener("input", () => {
+    clearTimeout(inlineTimer);
+    inlineTimer = setTimeout(() => { inlineQuery = inSrch.value.trim(); renderContent(); }, 200);
+  });
+  inSrch.addEventListener("keydown", e => { if (e.key === "Enter") navigateMatches(e.shiftKey ? -1 : 1); });
+}
+
+function updateStats() {
+  document.getElementById("stats-bar").innerHTML =
+    `<b>${index.total_videos}</b> vídeos · <b>${index.channels.length}</b> canales`;
+}
+
+function setupLLMSelectors() {
+  const provSel = document.getElementById('llm-provider');
+  provSel.innerHTML = Object.entries(LLM_PROVIDER_MAP).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+  provSel.addEventListener('change', () => updateModelOptions(provSel.value));
+  updateModelOptions(provSel.value);
+}
+
+function updateModelOptions(key) {
+  const sel = document.getElementById('llm-model');
+  const p = LLM_PROVIDER_MAP[key] || LLM_PROVIDER_MAP.anthropic;
+  sel.innerHTML = p.models.map(m => `<option value="${m.value}">${m.label}</option>`).join('');
+}
+
+// ── CHANNEL FILTER ──
+function buildChannelFilter() {
+  const wrap = document.getElementById("channel-filter-wrap");
+  wrap.innerHTML = "";
+  const all = document.createElement("div");
+  all.className = "ch-tag active"; all.textContent = "Todos"; all.dataset.ch = "";
+  all.addEventListener("click", () => setChannel(""));
+  wrap.appendChild(all);
+  for (const ch of index.channels) {
+    const tag = document.createElement("div");
+    tag.className = "ch-tag";
+    tag.textContent = `${ch.name} (${ch.count})`; tag.title = ch.name; tag.dataset.ch = ch.name;
+    tag.addEventListener("click", () => setChannel(ch.name));
+    wrap.appendChild(tag);
+  }
+}
+
+function setChannel(ch) {
+  activeChannel = ch || null;
+  document.querySelectorAll(".ch-tag").forEach(t => t.classList.toggle("active", t.dataset.ch === (ch || "")));
+  applyFilters();
+}
+
+// ── FILTERING ──
+function applyFilters() {
+  let videos = index.videos;
+  if (activeChannel) videos = videos.filter(v => v.channel === activeChannel);
+  if (activeLang) videos = videos.filter(v => v.language === activeLang || v.languages_available?.includes(activeLang));
+  if (searchQuery.length >= 2) {
+    const q = searchQuery.toLowerCase();
+    videos = videos.filter(v => v.title.toLowerCase().includes(q) || v.full_text.toLowerCase().includes(q));
+  }
+  filteredVideos = videos;
+  renderVideoList();
+  const countEl = document.getElementById("search-count");
+  if (searchQuery.length >= 2) {
+    countEl.textContent = `${videos.length} resultado${videos.length !== 1 ? 's' : ''}`;
+    countEl.className = videos.length > 0 ? "has-results" : "";
+  } else { countEl.textContent = ""; countEl.className = ""; }
+}
+
+// ── VIDEO LIST ──
+function renderVideoList() {
+  const list = document.getElementById("video-list");
+  if (filteredVideos.length === 0) { list.innerHTML = `<div class="no-results"><strong>Sin resultados</strong></div>`; return; }
+  const frag = document.createDocumentFragment();
+  for (const v of filteredVideos) frag.appendChild(buildVideoCard(v));
+  list.innerHTML = "";
+  list.appendChild(frag);
+}
+
+function buildVideoCard(v) {
+  const card = document.createElement("div");
+  card.className = "video-card" + (v.video_id === activeVideoId ? " active" : "");
+  card.dataset.id = v.video_id;
+  const snippet = searchQuery.length >= 2 ? getSnippet(v.full_text, searchQuery) : v.text_preview;
+  card.innerHTML = `
+    <div class="thumb-wrap">
+      ${v.thumbnail ? `<img src="${v.thumbnail}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder>▶</div>'">` : `<div class="thumb-placeholder">▶</div>`}
+      ${v.duration_fmt ? `<div class="thumb-duration">${v.duration_fmt}</div>` : ''}
+    </div>
+    <div class="card-meta">
+      <div class="card-title">${v.title}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <div class="card-channel">${v.channel}</div>
+        <span class="lang-badge">${v.language || '?'}</span>
+      </div>
+      <div class="card-date">${formatDate(v.published)}</div>
+      <div class="card-snippet">${snippet}</div>
+    </div>`;
+  card.addEventListener("click", () => loadVideo(v));
+  return card;
+}
+
+// ── VIDEO LOADER ──
+function loadVideo(v) {
+  document.querySelectorAll(".video-card").forEach(c => c.classList.toggle("active", c.dataset.id === v.video_id));
+  activeVideoId = v.video_id;
+  updateContextInfo();
+
+  document.getElementById("empty-state").style.display = "none";
+  document.getElementById("viewer").classList.add("visible");
+  document.getElementById("viewer-title").textContent = v.title;
+  document.getElementById("viewer-meta").innerHTML = `
+    <div class="vm-item"><span class="icon">◎</span>${v.channel}</div>
+    ${v.published ? `<div class="vm-item"><span class="icon">◷</span>${formatDate(v.published)}</div>` : ''}
+    ${v.duration_fmt ? `<div class="vm-item"><span class="icon">⏱</span>${v.duration_fmt}</div>` : ''}
+    <div class="vm-item"><span class="lang-badge">${v.language || '?'}</span></div>
+    <a class="yt-link" href="${v.url}" target="_blank" rel="noopener">▶ Ver en YouTube</a>`;
+
+  document.getElementById("inline-search").value = "";
+  inlineQuery = ""; inlineMatches = [];
+
+  // Build cues from JSON data
+  // If JSON has cues array, use it; otherwise synthesize from full_text
+  if (v.cues && Array.isArray(v.cues) && v.cues.length) {
+    loadedCues = v.cues;
+  } else {
+    // Synthesize pseudo-cues from full_text (no timestamps)
+    loadedCues = synthCues(v.full_text);
+  }
+  renderContent();
+}
+
+// Sintetiza cues sin timestamps a partir del full_text
+function synthCues(text) {
+  if (!text) return [];
+  // Dividir en frases; deduplicar; agrupar para renderizado
+  const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 10);
+  const deduped = [];
+  for (const s of sentences) {
+    const prev = deduped[deduped.length - 1] || '';
+    if (!prev || !prev.includes(s)) deduped.push(s);
+  }
+  // Cada "cue" = 1 frase, sin timestamp real
+  return deduped.map((text, i) => ({ start: null, end: null, text }));
+}
+
+// ── GROUP CUES → PARAGRAPHS ──
+function groupCues(cues, gapSec = 2.5, maxLines = 8) {
+  if (!cues.length) return [];
+  const hasTimes = cues[0].start !== null;
+  const groups = [];
+  let current = { start: cues[0].start, end: cues[0].end, texts: [cues[0].text], lineCount: 1 };
+  for (let i = 1; i < cues.length; i++) {
+    const c = cues[i];
+    const gap = hasTimes ? (c.start - current.end) : 0;
+    if ((hasTimes && gap > gapSec) || current.lineCount >= maxLines) {
+      groups.push(current);
+      current = { start: c.start, end: c.end, texts: [c.text], lineCount: 1 };
+    } else {
+      current.end = c.end; current.texts.push(c.text); current.lineCount++;
+    }
+  }
+  groups.push(current);
+  return groups;
+}
+
+// ── RENDER CONTENT ──
+function renderContent() {
+  const scroll = document.getElementById("subtitle-scroll");
+  inlineMatches = []; inlineCurrent = 0;
+  if (!loadedCues.length) { scroll.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Sin contenido disponible.</div>'; return; }
+
+  const hasTimes = loadedCues[0].start !== null;
+  let html = "";
+
+  if (viewMode === "ts" && hasTimes) {
+    for (const cue of loadedCues) {
+      const ytUrl = `https://www.youtube.com/watch?v=${activeVideoId}&t=${Math.floor(cue.start)}s`;
+      const tsStr = secondsToTs(cue.start);
+      const text = inlineQuery ? highlight(cue.text, inlineQuery) : cue.text;
+      html += `<div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+        <div style="flex-shrink:0;width:64px;text-align:right">
+          <a style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);text-decoration:none" href="${ytUrl}" target="_blank" rel="noopener">${tsStr}</a>
+        </div>
+        <div style="flex:1;font-family:'Outfit',sans-serif;font-size:18px;font-weight:500;line-height:2;color:#111">${text}</div>
+      </div>`;
+    }
+  } else {
+    // Clean view: agrupar en párrafos
+    const groups = groupCues(loadedCues, 2.5, 8);
+    for (const g of groups) {
+      const rawText = g.texts.join(' ');
+      const text = inlineQuery ? highlight(rawText, inlineQuery) : rawText;
+      // Si hay timestamps, enlazar el párrafo a YouTube
+      const ytHref = (g.start !== null) ? `https://www.youtube.com/watch?v=${activeVideoId}&t=${Math.floor(g.start)}s` : null;
+      html += `<p class="clean-paragraph"${ytHref ? ` style="cursor:default"` : ''}>${text}</p>`;
+    }
+    if (!hasTimes) {
+      html = `<div style="padding:0 0 16px;margin-bottom:24px;border-bottom:1px solid var(--border)">
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)">
+          ℹ Texto extraído del índice · Los timestamps no están disponibles en este JSON · 
+          <a href="https://www.youtube.com/watch?v=${activeVideoId}" target="_blank" style="color:var(--gold-dim)">Ver vídeo en YouTube</a>
+        </span></div>` + html;
+    }
+  }
+
+  scroll.innerHTML = html;
+  if (inlineQuery) {
+    inlineMatches = Array.from(scroll.querySelectorAll("mark"));
+    if (inlineMatches.length) navigateMatches(0, true);
+    document.getElementById("match-nav").textContent = inlineMatches.length ? `1/${inlineMatches.length}` : "Sin resultados";
+  } else {
+    document.getElementById("match-nav").textContent = "";
+  }
+}
+
+function navigateMatches(delta, absolute = false) {
+  if (!inlineMatches.length) return;
+  inlineMatches[inlineCurrent]?.classList.remove("current");
+  inlineCurrent = absolute ? 0 : (inlineCurrent + delta + inlineMatches.length) % inlineMatches.length;
+  inlineMatches[inlineCurrent]?.classList.add("current");
+  inlineMatches[inlineCurrent]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  document.getElementById("match-nav").textContent = `${inlineCurrent+1}/${inlineMatches.length}`;
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById("btn-clean").classList.toggle("active", mode === "clean");
+  document.getElementById("btn-ts").classList.toggle("active", mode === "ts");
+  if (loadedCues.length) renderContent();
+}
+
+function updateContextInfo() {
+  const el = document.getElementById('context-info');
+  if (activeVideoId && index) {
+    const v = index.videos.find(x => x.video_id === activeVideoId);
+    if (v) { el.innerHTML = `Vídeo seleccionado: <b>${v.title}</b>`; return; }
+  }
+  el.innerHTML = 'Sin vídeo seleccionado — se buscará por relevancia en todos los vídeos';
+}
+
+// ── APP TABS ──
+function setAppTab(tab) {
+  document.getElementById('llm-panel').classList.toggle('visible', tab === 'llm');
+  document.getElementById('library-view').style.display = tab === 'llm' ? 'none' : 'flex';
+  document.getElementById('tab-library').classList.toggle('active', tab === 'library');
+  document.getElementById('tab-llm').classList.toggle('active', tab === 'llm');
+  if (tab === 'llm') updateContextInfo();
+}
+
+// ── LLM DIRECT API CALLS ──
+async function callAnthropicDirect(apiKey, model, system, userMsg) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({ model, max_tokens: 2048, system, messages: [{ role: 'user', content: userMsg }] })
+  });
+  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+  const data = await resp.json();
+  return data.content[0].text;
+}
+
+async function callOpenAIDirect(apiKey, model, system, userMsg) {
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }] })
+  });
+  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+  const data = await resp.json();
+  return data.choices[0].message.content;
+}
+
+async function callGeminiDirect(apiKey, model, system, userMsg) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: `${system}\n\n${userMsg}` }] }] })
+  });
+  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+  const data = await resp.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
+const LLM_SYSTEM = `Eres un asistente experto en análisis de contenido de subtítulos de vídeos de YouTube.
+Se te proporciona información sobre vídeos y sus transcripciones completas.
+Responde en español. Cita los vídeos específicos cuando sea relevante.
+Si la información no está en el contexto, indícalo claramente.`;
+
+async function sendLLMQuery() {
+  const query = document.getElementById('llm-query').value.trim();
+  if (!query) { alert('Escribe una pregunta primero'); return; }
+  const provider = document.getElementById('llm-provider').value;
+  const model = document.getElementById('llm-model').value;
+  const apiKey = document.getElementById('llm-api-key').value.trim();
+  if (!apiKey) { alert('Introduce tu clave API'); return; }
+
+  const loadEl = document.getElementById('llm-loading');
+  const respEl = document.getElementById('llm-response');
+  const btnEl  = document.getElementById('llm-send-btn');
+  const msgEl  = document.getElementById('llm-loading-msg');
+
+  loadEl.style.display = 'flex';
+  respEl.classList.remove('visible', 'error');
+  btnEl.disabled = true;
+  msgEl.textContent = 'Buscando contexto relevante…';
+
+  try {
+    const contextText = buildContextText(query);
+    const userMsg = `${contextText}\n\nPregunta del usuario: ${query}`;
+    msgEl.textContent = 'Enviando a ' + LLM_PROVIDER_MAP[provider].label + '…';
+
+    let response = "";
+    if (provider === 'anthropic') response = await callAnthropicDirect(apiKey, model, LLM_SYSTEM, userMsg);
+    else if (provider === 'openai') response = await callOpenAIDirect(apiKey, model, LLM_SYSTEM, userMsg);
+    else if (provider === 'gemini') response = await callGeminiDirect(apiKey, model, LLM_SYSTEM, userMsg);
+
+    respEl.textContent = response;
+    respEl.classList.add('visible');
+    document.getElementById('llm-export-actions').style.display = 'flex';
+  } catch(e) {
+    respEl.textContent = `❌ Error: ${e.message}`;
+    respEl.classList.add('visible', 'error');
+    document.getElementById('llm-export-actions').style.display = 'none';
+  } finally {
+    loadEl.style.display = 'none';
+    btnEl.disabled = false;
+  }
+}
+
+// ── EXPORT MANAGER ──
+const ExportManager = {
+  _download(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  },
+  _sanitize(text) { return text.replace(/[\\/*?:"<>|]/g, ''); },
+  _frontmatter(v) {
+    return `---\ntitle: "${v.title.replace(/"/g, '\\"')}"\nchannel: "${v.channel}"\npublished: ${formatDate(v.published)}\nurl: "${v.url}"\nexported_at: ${new Date().toISOString().split('T')[0]}\ntags: [subnanalysis, youtube, transcription]\n---\n\n`;
+  },
+  activeVideoToMD() {
+    if (!activeVideoId || !index) return;
+    const v = index.videos.find(x => x.video_id === activeVideoId); if (!v) return;
+    let content = this._frontmatter(v) + `# ${v.title}\n\n`;
+    const groups = groupCues(loadedCues, 3.0);
+    if (groups.length) groups.forEach(g => { content += g.texts.join(' ') + '\n\n'; });
+    else content += v.full_text || '';
+    content += '\n---\n*Generado por SubnAnalysis*';
+    this._download(content, `${this._sanitize(v.title)}.md`, 'text/markdown');
+  },
+  async activeVideoToPDF() {
+    if (!activeVideoId || !index) return;
+    const v = index.videos.find(x => x.video_id === activeVideoId); if (!v) return;
+    document.getElementById('pdf-date-meta').textContent = new Date().toLocaleDateString();
+    document.getElementById('pdf-main-title').textContent = v.title;
+    document.getElementById('pdf-info-channel').textContent = v.channel;
+    document.getElementById('pdf-info-date').textContent = formatDate(v.published);
+    document.getElementById('pdf-info-url').textContent = v.url;
+    const area = document.getElementById('pdf-main-content'); area.innerHTML = '';
+    const groups = groupCues(loadedCues, 3.0);
+    if (groups.length) groups.forEach(g => { const p = document.createElement('p'); p.textContent = g.texts.join(' '); area.appendChild(p); });
+    else { const p = document.createElement('p'); p.textContent = v.full_text || ''; area.appendChild(p); }
+    const tmpl = document.getElementById('pdf-template');
+    tmpl.style.display = 'block';
+    try {
+      await html2pdf().set({ margin: 1, filename: `${this._sanitize(v.title)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(tmpl).save();
+    } finally { tmpl.style.display = 'none'; }
+  },
+  aiResponseToMD() {
+    const query = document.getElementById('llm-query').value.trim();
+    const resp = document.getElementById('llm-response').textContent;
+    const provider = document.getElementById('llm-provider').value;
+    const model = document.getElementById('llm-model').value;
+    if (!resp) return;
+    const content = `---\ntype: ai-query\nprovider: ${provider}\nmodel: ${model}\ndate: ${new Date().toISOString().split('T')[0]}\ntags: [subnanalysis, ai]\n---\n\n# Consulta IA\n\n**Pregunta:**\n> ${query}\n\n**Respuesta:**\n\n${resp}\n\n---\n*Generado por SubnAnalysis*`;
+    this._download(content, `IA_${Date.now()}.md`, 'text/markdown');
+  },
+  async aiResponseToPDF() {
+    const query = document.getElementById('llm-query').value.trim();
+    const resp = document.getElementById('llm-response').textContent;
+    if (!resp) return;
+    document.getElementById('pdf-date-meta').textContent = new Date().toLocaleDateString();
+    document.getElementById('pdf-main-title').textContent = "Consulta IA — SubnAnalysis";
+    document.getElementById('pdf-info-channel').textContent = "Análisis multi-vídeo";
+    document.getElementById('pdf-info-date').textContent = new Date().toLocaleDateString();
+    document.getElementById('pdf-info-url').textContent = "Generado desde corpus local";
+    const area = document.getElementById('pdf-main-content');
+    area.innerHTML = `<h3>Pregunta:</h3><p><i>${query}</i></p><br><h3>Respuesta:</h3>`;
+    resp.split('\n\n').forEach(block => { const p = document.createElement('p'); p.textContent = block; area.appendChild(p); });
+    const tmpl = document.getElementById('pdf-template');
+    tmpl.style.display = 'block';
+    try { await html2pdf().set({ margin: 1, filename: `IA_${Date.now()}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter' } }).from(tmpl).save(); }
+    finally { tmpl.style.display = 'none'; }
+  }
+};
+
+// ── BOOT ──
+setupDropZone();
+</script>
+</body>
+</html>
