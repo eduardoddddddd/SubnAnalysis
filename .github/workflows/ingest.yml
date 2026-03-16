@@ -11,6 +11,14 @@ jobs:
       contents: write
 
     steps:
+      - name: Verify authorization PIN
+        run: |
+          if [ "${{ github.event.client_payload.pin }}" != "${{ secrets.INGEST_PIN }}" ]; then
+            echo "❌ PIN incorrecto. Acceso denegado."
+            exit 1
+          fi
+          echo "✅ PIN verificado."
+
       - name: Checkout repo
         uses: actions/checkout@v4
 
