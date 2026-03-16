@@ -32,7 +32,13 @@ jobs:
 
       - name: Write cookies file
         if: ${{ secrets.YOUTUBE_COOKIES != '' }}
-        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+        env:
+          COOKIES_CONTENT: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          printf '%s' "$COOKIES_CONTENT" > /tmp/cookies.txt
+          echo "" >> /tmp/cookies.txt
+          echo "[INFO] Cookies file size: $(wc -c < /tmp/cookies.txt) bytes, lines: $(wc -l < /tmp/cookies.txt)"
+          head -3 /tmp/cookies.txt
 
       - name: Download subtitles
         env:
@@ -41,8 +47,9 @@ jobs:
         run: |
           mkdir -p vtts
           COOKIES_ARG=""
-          if [ -f /tmp/cookies.txt ]; then
+          if [ -f /tmp/cookies.txt ] && [ -s /tmp/cookies.txt ]; then
             COOKIES_ARG="--cookies /tmp/cookies.txt"
+            echo "[INFO] Usando cookies de YouTube"
           fi
           python -m yt_dlp \
             --skip-download \
