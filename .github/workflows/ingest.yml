@@ -19,14 +19,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install yt-dlp and JS runtime
+      - name: Install yt-dlp
         run: |
           pip install yt-dlp
-          # Node.js ya está instalado en ubuntu-latest, verificar versión
-          node --version
-          npm --version
-          # yt-dlp necesita node en PATH para evadir bot detection de YouTube
-          echo "Node.js disponible para yt-dlp JS runtime"
+          node --version || echo "node not found"
+          which node || echo "node not in PATH"
 
       - name: Restore VTT cache
         uses: actions/cache@v4
@@ -37,15 +34,17 @@ jobs:
             vtts-
 
       - name: Write cookies file
-        if: ${{ secrets.YOUTUBE_COOKIES != '' }}
         env:
           COOKIES_CONTENT: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
-          printf '%s\n' "$COOKIES_CONTENT" > /tmp/cookies.txt
-          # Convertir CRLF → LF (Windows → Linux)
-          sed -i 's/\r//' /tmp/cookies.txt
-          echo "[INFO] Cookies: $(wc -c < /tmp/cookies.txt) bytes, $(wc -l < /tmp/cookies.txt) líneas"
-          head -2 /tmp/cookies.txt
+          if [ -z "$COOKIES_CONTENT" ]; then
+            echo "[WARN] Secret YOUTUBE_COOKIES está vacío o no existe"
+          else
+            printf '%s\n' "$COOKIES_CONTENT" > /tmp/cookies.txt
+            sed -i 's/\r//' /tmp/cookies.txt
+            echo "[INFO] Cookies escritas: $(wc -c < /tmp/cookies.txt) bytes, $(wc -l < /tmp/cookies.txt) líneas"
+            head -2 /tmp/cookies.txt
+          fi
 
       - name: Download subtitles
         env:
@@ -53,11 +52,24 @@ jobs:
           YT_LANG: ${{ github.event.client_payload.lang }}
         run: |
           mkdir -p vtts
+
+          # Cookies
           COOKIES_ARG=""
           if [ -f /tmp/cookies.txt ] && [ -s /tmp/cookies.txt ]; then
             COOKIES_ARG="--cookies /tmp/cookies.txt"
-            echo "[INFO] Usando cookies de YouTube"
+            echo "[INFO] Usando cookies"
+          else
+            echo "[WARN] Sin cookies — puede fallar bot detection"
           fi
+
+          # JS runtime explícito para yt-dlp
+          NODE_PATH=$(which node 2>/dev/null || echo "")
+          JS_ARG=""
+          if [ -n "$NODE_PATH" ]; then
+            JS_ARG="--js-runtimes node:$NODE_PATH"
+            echo "[INFO] JS runtime: $NODE_PATH"
+          fi
+
           python -m yt_dlp \
             --skip-download \
             --write-auto-subs \
@@ -72,6 +84,7 @@ jobs:
             --download-archive vtts/archive.txt \
             --output "vtts/%(channel)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
             $COOKIES_ARG \
+            $JS_ARG \
             "${YT_URL}"
 
       - name: Build verbatube.json
