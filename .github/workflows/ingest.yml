@@ -1,0 +1,62 @@
+name: Ingest YouTube Subtitles
+
+on:
+  repository_dispatch:
+    types: [ingest]
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install yt-dlp
+        run: pip install yt-dlp
+
+      - name: Restore VTT cache
+        uses: actions/cache@v4
+        with:
+          path: vtts/
+          key: vtts-${{ github.run_id }}
+          restore-keys: |
+            vtts-
+
+      - name: Download subtitles
+        env:
+          YT_URL: ${{ github.event.client_payload.url }}
+          YT_LANG: ${{ github.event.client_payload.lang }}
+        run: |
+          mkdir -p vtts
+          python -m yt_dlp \
+            --skip-download \
+            --write-auto-subs \
+            --write-subs \
+            --sub-langs "${YT_LANG:-es,en}" \
+            --sub-format vtt \
+            --write-info-json \
+            --no-overwrites \
+            --ignore-errors \
+            --sleep-requests 1 \
+            --download-archive vtts/archive.txt \
+            --output "vtts/%(channel)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
+            "${YT_URL}"
+
+      - name: Build verbatube.json
+        run: python indexer.py
+
+      - name: Commit and push JSON
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add verbatube.json
+          git diff --staged --quiet || git commit -m "chore: update index [$(date -u '+%Y-%m-%d %H:%M')] ${{ github.event.client_payload.url }}"
+          git push
